@@ -16,6 +16,3 @@ logs/
 
 # Arquivos de configuração específicos do projeto
 config.ini
-
-# Dependências geradas pelo pip
-requirements.txt
