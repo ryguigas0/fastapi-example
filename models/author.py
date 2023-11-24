@@ -14,7 +14,9 @@ class Author(Base):
         }
 
 def list():
-    authors = list(map(lambda a: a.to_view(), db.query(Author).all()))
+    authors = []
+    for a in db.query(Author).all():
+        authors.append(a.to_view())
     return JSONResponse(content=authors, status_code=200)
 
 def get(author_id: int):
@@ -22,15 +24,32 @@ def get(author_id: int):
     if maybe_author != None:
         return JSONResponse(content=maybe_author.to_view(), status_code=200)
     else:
-        return JSONResponse(content=maybe_author.to_view(), status_code=404)
+        return JSONResponse(content={'msg': 'author not found'}, status_code=404)
 
 def create(name: str):
     author = Author(name=name)
-    db.add(author)
-    db.commit()
-    return JSONResponse(content=author.to_view(), status_code=201)
-    # try:
-    #     db.commit()
-    #     return JSONResponse(content=author.to_view(), status_code=201)
-    # except SQLAlchemyError:
-    #     return JSONResponse(content={'error': 'invalid author name'}, status_code=400)
+    try:
+        db.commit()
+        return JSONResponse(content=author.to_view(), status_code=201)
+    except SQLAlchemyError:
+        return JSONResponse(content={'error': 'invalid author name'}, status_code=400)
+
+def update(author_id: int, name: str):
+    author = db.query(Author).get(author_id)
+    if author != None:
+        try:
+            author.name = name
+            db.commit()
+            return JSONResponse(content=author.to_view(), status_code=200)
+        except SQLAlchemyError:
+            return JSONResponse(content={'error': 'invalid author name'}, status_code=400)
+    else:
+        return JSONResponse(content={'msg': 'author not found'}, status_code=404)
+
+def delete(author_id: int):
+    rowcount = db.query(Author).filter(Author.id == author_id).delete(synchronize_session='fetch')
+    #session.query(User).filter(User.name == "squidward").delete(synchronize_session="h")
+    if rowcount > 0:
+        return JSONResponse(content={'msg': 'author deleted'}, status_code=200)
+    else:
+        return JSONResponse(content={'msg': 'author not found'}, status_code=404)
