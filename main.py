@@ -89,20 +89,26 @@ Base.metadata.create_all(bind=engine)
 #     return JSONResponse(content={'msg': 'Hello world'})
 
 
+@app.get("/posts")
+def read_posts():
+    query = session.query(Post).join(Comment, isouter=True).all()
+
+    p_views = []
+    for p in query:
+        p_view = p.to_view()
+        c_views = []
+        for c in p.comment:
+            c_views.append(c.to_view())
+        p_view["comments"] = c_views
+        p_views.append(p_view)
+
+    return JSONResponse(content=p_views)
+
+
 @app.post("/posts")
 def create_post(title: str):
     post = Post(title=title)
     session.add(post)
-    session.commit()
-
-    return JSONResponse(content=post.to_view())
-
-
-@app.put("/posts/{post_id}")
-def put_post(post_id: str, title: str):
-    post = session.query(Post).filter_by(post_id=post_id).first()
-
-    post.title = title
     session.commit()
 
     return JSONResponse(content=post.to_view())
@@ -126,20 +132,14 @@ def get_post(post_id: str):
     return JSONResponse(content=p_view)
 
 
-@app.get("/posts")
-def read_posts():
-    query = session.query(Post).join(Comment, isouter=True).all()
+@app.put("/posts/{post_id}")
+def put_post(post_id: str, title: str):
+    post = session.query(Post).filter_by(post_id=post_id).first()
 
-    p_views = []
-    for p in query:
-        p_view = p.to_view()
-        c_views = []
-        for c in p.comment:
-            c_views.append(c.to_view())
-        p_view["comments"] = c_views
-        p_views.append(p_view)
+    post.title = title
+    session.commit()
 
-    return JSONResponse(content=p_views)
+    return JSONResponse(content=post.to_view())
 
 
 @app.delete("/posts/{post_id}")
@@ -154,11 +154,32 @@ def delete_post(post_id: str):
         return JSONResponse(content={"msg": "Post not found!"}, status_code=404)
 
 
+@app.get("/comments")
+def read_comments():
+    query = session.query(Comment).join(Comment, isouter=True).all()
+
+    for c in query:
+        c_view = c.to_view()
+        a_views = []
+        for a in c.attached_file:
+            a_views.append(a.to_view())
+        c_view["attached_files"] = a_views
+
+    return JSONResponse(content=c_view)
+
+
 @app.post("/comments")
 def create_comment(post_id: int, text: str, user: str):
     comment = Comment(post_id=post_id, text=text, user=user)
     session.add(comment)
     session.commit()
+
+    return JSONResponse(content=comment.to_view())
+
+
+@app.get("/comments/{comment_id}")
+def get_comment(comment_id: str):
+    comment = session.query(Comment).filter_by(comment_id=comment_id).first()
 
     return JSONResponse(content=comment.to_view())
 
@@ -175,26 +196,6 @@ def put_comment(comment_id: str, post_id: int, text: str, user: str):
     return JSONResponse(content=comment.to_view())
 
 
-@app.get("/comments/{comment_id}")
-def get_comment(comment_id: str):
-    comment = session.query(Comment).filter_by(comment_id=comment_id).first()
-
-    return JSONResponse(content=comment.to_view())
-
-
-@app.get("/comments")
-def read_comments():
-    query = session.query(Comment).join(Comment, isouter=True).all()
-
-    for c in query:
-        c_view = c.to_view()
-        a_views = []
-        for a in c.attached_file:
-            a_views.append(a.to_view())
-        c_view["attached_files"] = a_views
-
-    return JSONResponse(content=c_view)
-
 @app.delete("/comments/{comment_id}")
 def delete_comment(comment_id: str):
     rowcount = session.query(Comment).filter_by(comment_id=comment_id).delete()
@@ -205,6 +206,7 @@ def delete_comment(comment_id: str):
         return JSONResponse(content={"msg": "Commnet deleted!"})
     else:
         return JSONResponse(content={"msg": "Comment not found!"}, status_code=404)
+
 
 if __name__ == "__main__":
     uvicorn.run(app, port=3000)
