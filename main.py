@@ -156,16 +156,18 @@ def delete_post(post_id: str):
 
 @app.get("/comments")
 def read_comments():
-    query = session.query(Comment).join(Comment, isouter=True).all()
+    query = session.query(Comment).join(AttachedFile, isouter=True).all()
 
+    c_views = []
     for c in query:
         c_view = c.to_view()
         a_views = []
         for a in c.attached_file:
             a_views.append(a.to_view())
         c_view["attached_files"] = a_views
+        c_views.append(c_view)
 
-    return JSONResponse(content=c_view)
+    return JSONResponse(content=c_views)
 
 
 @app.post("/comments")
@@ -179,9 +181,15 @@ def create_comment(post_id: int, text: str, user: str):
 
 @app.get("/comments/{comment_id}")
 def get_comment(comment_id: str):
-    comment = session.query(Comment).filter_by(comment_id=comment_id).first()
+    c = session.query(Comment).filter_by(comment_id=comment_id).join(AttachedFile, isouter=True).first()
 
-    return JSONResponse(content=comment.to_view())
+    c_view = c.to_view()
+    a_views = []
+    for a in c.attached_file:
+        a_views.append(a.to_view())
+    c_view["attached_files"] = a_views
+
+    return JSONResponse(content=c_view)
 
 
 @app.put("/comments/{comment_id}")
@@ -199,6 +207,61 @@ def put_comment(comment_id: str, post_id: int, text: str, user: str):
 @app.delete("/comments/{comment_id}")
 def delete_comment(comment_id: str):
     rowcount = session.query(Comment).filter_by(comment_id=comment_id).delete()
+
+    session.commit()
+
+    if rowcount == 1:
+        return JSONResponse(content={"msg": "Commnet deleted!"})
+    else:
+        return JSONResponse(content={"msg": "Comment not found!"}, status_code=404)
+
+
+@app.get("/attached_files")
+def read_attached_files():
+    attached_file = session.query(Comment).join(Comment, isouter=True).all()
+
+    return JSONResponse(content=attached_file.to_view())
+
+
+@app.post("/attached_files")
+def create_attached_file(comment_id: int, title: str, file_path: str):
+    attached_file = AttachedFile(
+        comment_id=comment_id, title=title, file_path=file_path
+    )
+    session.add(attached_file)
+    session.commit()
+
+    return JSONResponse(content=attached_file.to_view())
+
+
+@app.get("/attached_files/{attached_file_id}")
+def get_attached_file(attached_file_id: str):
+    attached_file = (
+        session.query(AttachedFile).filter_by(attached_file_id=attached_file_id).first()
+    )
+
+    return JSONResponse(content=attached_file.to_view())
+
+
+@app.put("/attached_files/{attached_file_id}")
+def put_attached_file(attached_file_id: int, comment_id: int, title: str, file_path: str):
+    attached_file = (
+        session.query(AttachedFile).filter_by(attached_file_id=attached_file_id).first()
+    )
+
+    attached_file.comment_id = comment_id
+    attached_file.title = title
+    attached_file.file_path = file_path
+    session.commit()
+
+    return JSONResponse(content=attached_file.to_view())
+
+
+@app.delete("/attached_files/{attached_file_id}")
+def delete_attached_file(attached_file_id: str):
+    rowcount = (
+        session.query(AttachedFile).filter_by(attached_file_id=attached_file_id).delete()
+    )
 
     session.commit()
 
