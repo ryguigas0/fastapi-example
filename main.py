@@ -142,6 +142,18 @@ def read_posts():
     return JSONResponse(content=p_views)
 
 
+@app.delete("/posts/{post_id}")
+def delete_post(post_id: str):
+    rowcount = session.query(Post).filter_by(post_id=post_id).delete()
+
+    session.commit()
+
+    if rowcount == 1:
+        return JSONResponse(content={"msg": "Post deleted!"})
+    else:
+        return JSONResponse(content={"msg": "Post not found!"}, status_code=404)
+
+
 @app.post("/comments")
 def create_comment(post_id: int, text: str, user: str):
     comment = Comment(post_id=post_id, text=text, user=user)
@@ -183,6 +195,16 @@ def read_comments():
 
     return JSONResponse(content=c_view)
 
+@app.delete("/comments/{comment_id}")
+def delete_comment(comment_id: str):
+    rowcount = session.query(Comment).filter_by(comment_id=comment_id).delete()
+
+    session.commit()
+
+    if rowcount == 1:
+        return JSONResponse(content={"msg": "Commnet deleted!"})
+    else:
+        return JSONResponse(content={"msg": "Comment not found!"}, status_code=404)
 
 if __name__ == "__main__":
     uvicorn.run(app, port=3000)
