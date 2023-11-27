@@ -34,12 +34,17 @@ class Post(Base):
     created = Column(DateTime, default=func.now())
     comment = relationship("Comment")
 
-    def to_view(self):
-        return {
+    def to_view(self, level=1):
+        view = {
             "id": self.post_id,
             "title": self.title,
             "created": str(self.created),
         }
+
+        if level > 0:
+            view["comments"] = list(map(lambda c: c.to_view(level - 1), self.comment))
+
+        return view
 
 
 class Comment(Base):
@@ -53,14 +58,21 @@ class Comment(Base):
     created = Column(DateTime, default=func.now())
     user = Column(String(255))
 
-    def to_view(self):
-        return {
+    def to_view(self, level=1):
+        view = {
             "id": self.comment_id,
             "post_id": self.post_id,
             "text": self.text,
             "created": str(self.created),
             "user": self.user,
         }
+
+        if level > 0:
+            view["attached_files"] = list(
+                map(lambda a: a.to_view(level - 1), self.attached_file)
+            )
+
+        return view
 
 
 class AttachedFile(Base):
@@ -72,7 +84,7 @@ class AttachedFile(Base):
     created = Column(DateTime, default=func.now())
     file_path = Column(String(255))
 
-    def to_view(self):
+    def to_view(self, level=0):
         return {
             "id": self.attached_file_id,
             "comment_id": self.comment_id,
@@ -90,17 +102,10 @@ Base.metadata.create_all(bind=engine)
 
 
 @app.get("/api/posts")
-def read_posts():
+def read_posts(detail_level: int = 1):
     query = session.query(Post).join(Comment, isouter=True).all()
 
-    p_views = []
-    for p in query:
-        p_view = p.to_view()
-        c_views = []
-        for c in p.comment:
-            c_views.append(c.to_view())
-        p_view["comments"] = c_views
-        p_views.append(p_view)
+    p_views = list(map(lambda p: p.to_view(level), query))
 
     return JSONResponse(content=p_views)
 
@@ -115,7 +120,7 @@ def create_post(title: str):
 
 
 @app.get("/api/posts/{post_id}")
-def get_post(post_id: str):
+def get_post(post_id: str, detail_level: int = 1):
     post = (
         session.query(Post)
         .filter_by(post_id=post_id)
@@ -123,13 +128,7 @@ def get_post(post_id: str):
         .first()
     )
 
-    p_view = post.to_view()
-    c_views = []
-    for c in post.comment:
-        c_views.append(c.to_view())
-    p_view["comments"] = c_views
-
-    return JSONResponse(content=p_view)
+    return JSONResponse(content=post.to_view())
 
 
 @app.put("/api/posts/{post_id}")
@@ -155,17 +154,10 @@ def delete_post(post_id: str):
 
 
 @app.get("/api/comments")
-def read_comments():
+def read_comments(detail_level: int = 1):
     query = session.query(Comment).join(AttachedFile, isouter=True).all()
 
-    c_views = []
-    for c in query:
-        c_view = c.to_view()
-        a_views = []
-        for a in c.attached_file:
-            a_views.append(a.to_view())
-        c_view["attached_files"] = a_views
-        c_views.append(c_view)
+    c_views = list(map(lambda c: c.to_view(detail_level), query))
 
     return JSONResponse(content=c_views)
 
@@ -180,21 +172,15 @@ def create_comment(post_id: int, text: str, user: str):
 
 
 @app.get("/api/comments/{comment_id}")
-def get_comment(comment_id: str):
-    c = (
+def get_comment(comment_id: str, detail_level: int = 1):
+    comment = (
         session.query(Comment)
         .filter_by(comment_id=comment_id)
         .join(AttachedFile, isouter=True)
         .first()
     )
 
-    c_view = c.to_view()
-    a_views = []
-    for a in c.attached_file:
-        a_views.append(a.to_view())
-    c_view["attached_files"] = a_views
-
-    return JSONResponse(content=c_view)
+    return JSONResponse(content=comment.to_view(detail_level))
 
 
 @app.put("/api/comments/{comment_id}")
@@ -225,9 +211,7 @@ def delete_comment(comment_id: str):
 def read_attached_files():
     query = session.query(AttachedFile).all()
 
-    a_views = []
-    for a in query:
-        a_views.append(a.to_view())
+    a_views = list(map(lambda a: a.to_view(), query))
 
     return JSONResponse(content=a_views)
 
